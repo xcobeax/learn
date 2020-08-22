@@ -12,18 +12,18 @@ const getToken = () => Cookies.get(tokenKey) || null;
 const getExpired = () => Cookies.get(expiredTokenKey);
 
 const setCredential = ({ token, expired }) => {
-  Cookies.set(tokenKey, token, { domain: domains }); // Token
-  Cookies.set(expiredTokenKey, expired, { domain: domains }); // expired
+  Cookies.set(tokenKey, token, { domain: "netlify.app" }); // Token
+  Cookies.set(expiredTokenKey, expired, { domain: "netlify.app" }); // expired
 };
 
 const setAccessRights = ({ access }) => {
-  Cookies.set(accessRights, access, { domain: domains });
+  Cookies.set(accessRights, access, { domain: "netlify.app" });
 };
 
 const removeAuthCredential = () => {
-  Cookies.remove(tokenKey, { domain: domains });
-  Cookies.remove(expiredTokenKey, { domain: domains });
-  Cookies.remove(accessRights, { domain: domains });
+  Cookies.remove(tokenKey, { domain: "netlify.app" });
+  Cookies.remove(expiredTokenKey, { domain: "netlify.app" });
+  Cookies.remove(accessRights, { domain: "netlify.app" });
 };
 
 export {
