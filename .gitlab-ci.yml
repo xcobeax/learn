@@ -1,0 +1,76 @@
+variables:
+  MICRO_NAME: ui-portal
+  DOCKER_IMAGE_NAME: $CI_REGISTRY/$CI_PROJECT_NAMESPACE/$CI_PROJECT_NAME
+  DOCKER_HOST_IP: 192.168.220.53
+  DOCKER_HOST_NAME: gitserver.pindad.com
+
+stages:
+ - setup
+ - build
+ - deploy
+
+cache:
+  untracked: true
+  paths:
+    - node_modules/
+
+setup:
+  stage: setup
+  script:
+    - yarn install
+    - yarn build
+
+build:
+  stage: build
+  only:
+    - master
+    - tags
+  before_script:
+    - echo docker login to $CI_REGISTRY
+    - echo $DOCKER_PASS | docker login $CI_REGISTRY -u $DOCKER_USER --password-stdin
+  script:
+    - echo building docker image...
+    - if [[ -n $CI_COMMIT_TAG ]]; then
+      docker build --add-host=$DOCKER_HOST_NAME:$DOCKER_HOST_IP -t $DOCKER_IMAGE_NAME:$CI_COMMIT_TAG . ;
+      docker push $DOCKER_IMAGE_NAME:$CI_COMMIT_TAG ;
+      fi
+    - echo pushing docker image to registry...
+    - if [[ $CI_COMMIT_BRANCH == "master" ]]; then
+      docker build --add-host=$DOCKER_HOST_NAME:$DOCKER_HOST_IP -t $DOCKER_IMAGE_NAME:$CI_COMMIT_SHORT_SHA . ;
+      docker push $DOCKER_IMAGE_NAME:$CI_COMMIT_SHORT_SHA ;
+      fi
+
+deploy_staging:
+  stage: deploy
+  only:
+    - master
+  before_script:
+    - mkdir -p gitlab
+    - echo "$KUBECONFIG_STG" | base64 --decode > gitlab/kube_staging
+    - echo "check kubeconfig"
+    - kubectl --kubeconfig=gitlab/kube_staging get nodes
+  script:
+    - echo "deploying to kubernetes..."
+    - kubectl --kubeconfig=gitlab/kube_staging set image deployment/$MICRO_NAME node=$DOCKER_IMAGE_NAME:$CI_COMMIT_SHORT_SHA
+  after_script:
+    - echo Removing docker image $DOCKER_IMAGE_NAME:$CI_COMMIT_SHORT_SHA
+    # - docker rmi $DOCKER_IMAGE_NAME:$CI_COMMIT_SHORT_SHA
+    - echo Docker image removed.
+
+deploy_production:
+  stage: deploy
+  when: manual
+  only:
+    - tags
+  before_script:
+    - mkdir -p gitlab
+    - echo "$KUBECONFIG_PROD" | base64 --decode > gitlab/kube_production
+    - echo "check kubeconfig"
+    - kubectl --kubeconfig=gitlab/kube_production get nodes
+  script:
+    - echo "deploying to kubernetes..."
+    - kubectl --kubeconfig=gitlab/kube_production set image deployment/$MICRO_NAME node=$DOCKER_IMAGE_NAME:$CI_COMMIT_TAG
+  after_script:
+    - echo Removing docker image $DOCKER_IMAGE_NAME:$CI_COMMIT_SHORT_SHA
+    - docker rmi $DOCKER_IMAGE_NAME:$CI_COMMIT_TAG
+    - echo Docker image removed.
